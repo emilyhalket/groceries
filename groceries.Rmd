@@ -1,0 +1,386 @@
+---
+title: "grocery trends"
+output: html_document
+---
+
+```{r workspace_setup,echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+
+# ----- read in data
+setwd('/Users/emilyhalket/Desktop/professional_development/company_specific/etsy/gma_homework-master/')
+df <- read.csv('./reorganized_foodmart_data_for_visualizations.csv', header = TRUE)
+
+# set factors and reorder by department
+l1 = c('product_id', 'customer_id', 'store_id', 
+       'month_of_year', 'product_class_id')
+
+df <- df %>%
+  mutate_each_(funs(as.factor), l1)
+
+df$dept <- reorder(df$dept, df$family_level)
+df$new_category <- reorder(df$new_category, df$dept_level)
+
+# ------- summarise by category
+info_by_cat <- df %>%
+  group_by(product_family, food_dept, dept, new_category) %>%
+  summarise(total_profit = sum(profit), total_units = sum(unit_sales),
+            profit_per_unit = total_profit/total_units) 
+
+info_by_cat$new_category <- reorder(info_by_cat$new_category, info_by_cat$total_units)
+
+# ------- color palatte for plots
+
+seven_color <- c("darkslateblue",
+                "darkorange3",
+                "palegreen4",
+                "hotpink4",
+                "turquoise4",
+               "royalblue4",
+               "indianred4")
+```
+
+### Background and Explanation of Approach
+
+The dataset used includes information about products sold at Foodmart stores within one year.
+
+Observations to keep in mind while working with data:
+
+* All of the transactions are marked 1997, however the corresponding promotions are time stamped in 1996. 
+
+
+* This seems to be a subset of all Foodmart data.
+
+    + Some store IDs correspond to only one transaction, while other stores have thousands of transactions
+  
+    + There are patterns in the data that suggests some filtering or limits applied when queried (for instance, the majority of item subcategories have 5 brands)
+
+
+Manipulations to data:
+
+* I manipulated some category and department names to resolve ambiguity in the original data. 
+
+* Additionally, I divided the food product family in attempt to simplify the visualizations. 
+
+* I defined profit as the difference between store sales and store cost.
+
+***
+
+# Question 1: Visualizations
+
+***
+
+## Product Categories
+
+
+
+### Examining Units Sold per Category
+
+In order to understand what is happeneing at the category level in Foodmart stores, I began by looking at the __total number of units sold per category__. 
+
+```{r non_perish_units,echo=FALSE}
+
+#--- plot "non perishable" food categories
+
+info_by_cat %>%
+  filter(product_family == 'Food' & food_dept == 'Non Perish') %>%
+  ggplot(aes(x = new_category, y = total_units)) +
+  geom_bar(stat = "identity", fill = "darkslateblue") +
+  labs(title = "Non Perishable Food: Total Units Sold by Category",
+       x = "",
+       y = '') + 
+  ylim(0,63000) +
+  theme_minimal() + coord_flip()
+
+```
+
+From this graph we can see that the __Snack Foods__ category has the most number of units sold within non perishable foods, with __61,090__ units sold .
+
+
+***
+
+```{r perish_units,echo=FALSE}
+
+# --- plot perishable food categories
+
+info_by_cat %>%
+  filter(product_family == 'Food' & food_dept == 'Perish') %>%
+  ggplot(aes(x = new_category, y = total_units)) +
+  geom_bar(stat = "identity", fill = "darkslateblue") +
+  labs(title = "Perishable Food: Total Units Sold by Category",
+       x = "",
+       y = '') +
+  ylim(0,63000) +
+  theme_minimal() + coord_flip()
+
+
+```
+
+The __Fresh Vegetables__ category has the most number of units sold within perishable foods, with __41,478__ units sold in 1997.
+
+
+***
+
+```{r drinks_units,echo=FALSE}
+
+# --- plot drinks ---- 
+info_by_cat %>%
+  filter(product_family == 'Drink') %>%
+  ggplot(aes(x = new_category, y = total_units)) +
+  geom_bar(stat = "identity", fill = "darkslateblue", width = .75) +
+  labs(title = "Drinks: Total Units Sold by Category",
+       y = '',
+       x = "") +
+  ylim(0,63000) +
+  theme_minimal() + coord_flip()
+
+
+
+```
+
+The __Beer and Wine__ category has the most units sold within the drink family, with over __13,676__ units sold. 
+
+
+***
+
+```{r non_consume_units,echo=FALSE}
+
+# plot non consumable categories
+
+info_by_cat %>%
+  filter(product_family == 'Non-Consumable') %>%
+  ggplot(aes(x = new_category, y = total_units)) +
+  geom_bar(stat = "identity",  fill = "darkslateblue") + 
+  labs(title = "Non Consumables: Total Units Sold by Category",
+       x = "",
+       y = '') +
+  ylim(0,63000) +
+  theme_minimal() + coord_flip()
+
+
+
+```
+
+__Paper Products__ and __Electrical__ items have the highest number of units sold of the non consumable product family, with __13,606__ units and __13,564__ units sold respectively.
+
+***
+
+
+### Brief Examination of Top Categories by Quarter
+
+As an example of one possible further exploration of the category dimension, I examined which categories account for the largest portion of Foodmart profit each quarter.
+
+
+```{r quarter_cat,echo=FALSE, message=FALSE, warning = FALSE}
+
+# identify top categories by quarterly profit
+
+top_cat_quarter_profit <- df %>%
+  group_by(new_category, quarter) %>%
+  summarise(total_profit = sum(profit)) %>%
+  group_by(quarter)%>%
+  top_n(n = 5)
+
+# reorder for plot arrangement 
+
+top_cat_quarter_profit$new_category <- reorder(top_cat_quarter_profit$new_category, desc(top_cat_quarter_profit$total_profit))
+
+# plot
+top_cat_quarter_profit %>% 
+  ggplot(aes(x = new_category, y = total_profit, fill = new_category)) +
+  facet_grid(.~quarter, scales =  "free_x") +
+  geom_bar(stat = "identity") +
+  labs(title = "Top Five: Largest Profit Categories by Quarter",
+       x = "",
+       y = "",
+       fill = "") +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank(),
+        legend.position = "bottom") +
+  scale_y_discrete(breaks = c(5000, 10000, 15000, 20000),
+                   labels = c('$5K', '$10K', '$15K', '$20K'))+
+  scale_fill_manual(values = seven_color) 
+
+```
+
+This graph shows stability in ranking of top categories each quarter, with __Snack Foods__ consistently accounting for the largest portion of profit. 
+
+
+***
+
+## Examining Brand Performance at Foodmart Stores
+
+There are __111 brands__ selling items across Foodmart locations. I decided to present findings based on top performing brands and categories. I chose just a few questions to address to understand brand trends in Foodmart stores. Any of these lines of inquiry could be expanded.
+
+***
+
+### Quarterly Profit by Top Brands
+
+I examined which brands were responsible for the largest portion of Foodmart profit each quarter, and whether these brands were consistently the top performers.
+
+
+```{r get_top_brands ,echo=FALSE, message=FALSE, warning = FALSE}
+
+# identify top brands for each quarter
+
+top_brands_quarter <- df%>%
+  group_by(brand_name, quarter) %>%
+  summarise(total_units = sum(unit_sales),
+            total_profit = sum(profit)) %>%
+  group_by(quarter) %>%
+  top_n(n = 5, wt = total_profit)
+
+
+
+```
+
+
+```{r plot_top_brands,echo=FALSE, message=FALSE, warning = FALSE}
+
+# reorder for plot
+top_brands_quarter$brand_name <- reorder(top_brands_quarter$brand_name, desc(top_brands_quarter$total_profit))
+
+# plot
+top_brands_quarter%>%
+  ggplot(aes(x = brand_name, y = total_profit, fill = brand_name)) +
+  facet_grid(.~quarter, scales =  "free_x") +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank(),
+         legend.position = "bottom") +
+  labs(title = "Quarterly Top Five: Brands Responsible for Largest Profit by Quarter",
+       x = "Brand Name",
+       y = "Profit",
+       fill = "") +
+  scale_y_discrete(breaks = c(0,2000,4000,6000),
+                         labels = c('$0','$2K','$4K','$6K')) +
+   scale_fill_manual(values = seven_color) 
+
+
+```
+
+This graph shows that four of five top earning brand names are consistently top performers: __Hermanos__, __Tell Tale__, __Ebony__, and __Tri State__. These brands, as well as __High Top__ are produce brands. Interestingly, __Nationeel__, a snack food brand, outperforms __High Top__ in __Q4__. Additionally, there is some variability in quarterly profit by brand.
+
+***
+
+### Brands with Most Purchases per Transaction
+
+Another question of interest is of the top earning brands, which brands are selling the most items in a given transaction? To address this question, I investigated the average number of units sold per transaction for each brand, and how this average related to overall brand profit. _Note_: Transactions where no items of a given brand were purchased were not included when calculating the averages.
+
+
+```{r frequent_trans_brands,echo=FALSE, message=FALSE, warning = FALSE}
+# summarise profit, units, brands, items by brand
+
+brand_summary <- df %>%
+  group_by(brand_name) %>%
+  summarise(total_profit = sum(profit),
+            total_units = sum(unit_sales),
+            num_stores = n_distinct(store_id),
+            num_items = n_distinct(product_id))
+
+# get frequency of brand name for each transaction
+
+brand_freq_trans <- df %>% 
+  group_by(store_id, customer_id, brand_name) %>%
+  summarise(brand_units = sum(unit_sales)) %>%
+  group_by(brand_name) %>%
+  summarise(avg_units_trans = mean(brand_units)) %>%
+  mutate(percentile = ntile(avg_units_trans, n = 4))
+
+
+brand_freq_trans <- brand_freq_trans %>%
+  left_join(brand_summary, by = "brand_name")
+
+brand_freq_trans$brand_name <- as.factor(brand_freq_trans$brand_name)
+
+```
+
+
+``````{r top_frequent_trans_brands,echo=FALSE, message=FALSE, warning = FALSE}
+
+# plot top 5 brands
+
+brand_freq_trans %>%
+  top_n(n = 5, wt = total_profit) %>%
+  ggplot(aes(x = avg_units_trans, y = total_profit)) +
+  geom_point(aes(color = brand_name, shape = brand_name), size = 5) +
+  scale_colour_manual(values = seven_color, name = "Brand Name") +
+  scale_shape_discrete(name = "Brand Name")+
+  labs(
+    title = "Top Brands: Units per Transaction and Profit",
+    x = "Average Units per Transaction",
+    y = "Total Brand Profit"
+  )
+  
+```
+
+This graph shows the relationship between __brand profit__ and the __average number of brand items per transaction__. While __Tell Tale__ has the highest number of items sold per transaction, profit associated with this brand is less than __Harmanos__. As all of these brands sell __produce__ it makes sense that there is limited variability in average number of units per transaction.
+
+
+***
+
+Next, I investigated the relationship between brand profit and average number of brand items per transactions __across all brands__ to see an __overall trend__.
+
+``````{r frequent_trans_all_brands,echo=FALSE, message=FALSE, warning = FALSE}
+
+# reorder for plot
+brand_freq_trans$brand_name <- reorder(
+  brand_freq_trans$brand_name, desc(brand_freq_trans$avg_units_trans)
+)
+
+# plot
+brand_freq_trans %>%
+  ggplot(aes(x = avg_units_trans, y = total_profit)) +
+  geom_point(color = "hotpink4") +
+  labs(title = "Units per Transaction and Profit",
+       x = "Average Number of Units Sold",
+       y = "Total Brand Profit") +
+  theme_minimal() + theme(legend.position = "none")
+
+```
+
+Here we can see, as expected, that generally __higher frequency of items purchased per transaction relates to improved profit__. This could be related to brands offering items across categories and departments. Another potential explanation could be that top performing brands sell items that are frequently purchased within multiples, such as produce.
+
+***
+### Brand Performance in Top Category
+
+Finally, I chose to investigate brand performance in the top profit category: Snack Foods. Specifically, I chose to address how __store presence__ of a brand related to __total brand profit__. 
+
+
+```{r snack food brands, echo = FALSE, message = FALSE, warning = FALSE}
+
+# summary of snack food brands
+
+snack_brands <- df %>%
+  filter(new_category == "Snack Foods") %>%
+  group_by(brand_name) %>%
+  summarise(num_units = sum(unit_sales),
+            total_profit = sum(profit),
+            profit_per_unit = total_profit/num_units,
+            num_stores = n_distinct(store_id))
+
+snack_brands$brand_name <- reorder(snack_brands$brand_name, desc(snack_brands$total_profit))
+
+# plot 
+
+snack_brands %>%
+  ggplot(aes(x = num_stores, y = total_profit, group = brand_name)) +
+  geom_point(aes(shape = brand_name, color = brand_name), size = 5) +
+  scale_colour_manual(values = seven_color, name = "Brand Name") +
+  labs(title = "Snack Foods: Store Presence and Profit",
+         x = "Number of Stores Selling Brand",
+         y = "Total Profit") +
+  scale_shape_discrete(name = "Brand Name")+
+  theme(legend.position = "bottom") +
+  theme_minimal()
+
+
+```
+
+
+As expected, snack food brands that are sold in more stores result in a higher brand profit. __Nationeel__, the top profit snack food brand, outperforms the other brands which is likely explained by its heightened store presence.
+
+***
+
+
+
